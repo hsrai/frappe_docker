@@ -1,0 +1,14 @@
+[
+    {
+      "url": "https://github.com/frappe/erpnext", 
+      "branch": "version-15"
+    },
+    {
+      "url": "https://github.com/frappe/drive", 
+      "branch": "develop"
+    },
+    {
+      "url": "https://github.com/frappe/helpdesk", 
+      "branch": "main"
+    }
+]

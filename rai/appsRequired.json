@@ -1,0 +1,30 @@
+[
+    {
+      "url": "https://github.com/frappe/erpnext", 
+      "branch": "version-15"
+    },    
+    {
+      "url": "https://github.com/frappe/payments", 
+      "branch": "version-15"
+    },
+    {
+      "url": "https://github.com/frappe/wiki", 
+      "branch": "master"
+    },
+    {
+      "url": "https://github.com/frappe/twilio-integration", 
+      "branch": "master"
+    },
+    {
+      "url": "https://github.com/frappe/drive", 
+      "branch": "develop"
+    },
+    {
+      "url": "https://github.com/The-Commit-Company/raven", 
+      "branch": "develop"
+    },
+    {
+      "url": "https://github.com/frappe/helpdesk", 
+      "branch": "main"
+    }
+]
