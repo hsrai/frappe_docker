@@ -104,3 +104,27 @@ string.
 bash makeDocker.sh
 ```
 
+### Push image
+
+Push image to use in yaml files.
+
+1. Login to docker
+
+```sh
+docker login
+```
+
+follow on-screen instructions.
+
+1. Push image
+
+```sh
+docker push hsrai/frappe_docker:educationV0.1.0
+```
+Above is example of:
+
+``sh
+docker push <username>/<imagename>:<tag>
+
+Now use it in yaml as explained in the beginning of the file.
+ 
