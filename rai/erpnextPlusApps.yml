@@ -1,6 +1,6 @@
 services:
   backend:
-    image: hsrai/frappe_docker:educationV0.0.2
+    image: hsrai/frappe_docker:educationV0.1.0
     deploy:
       restart_policy:
         condition: on-failure
@@ -9,7 +9,7 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   configurator:
-    image: hsrai/frappe_docker:educationV0.0.2
+    image: hsrai/frappe_docker:educationV0.1.0
     deploy:
       restart_policy:
         condition: none
@@ -37,7 +37,7 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   create-site:
-    image: hsrai/frappe_docker:educationV0.0.2
+    image: hsrai/frappe_docker:educationV0.1.0
     deploy:
       restart_policy:
         condition: none
@@ -65,7 +65,7 @@ services:
           fi
         done;
         echo "sites/common_site_config.json found";
-        bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=admin --install-app erpnext --install-app payments --install-app wiki  --set-default frontend;
+        bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=admin --install-app erpnext --install-app payments --install-app wiki --install-app  twilio_integration --install-app drive --install-app raven --install-app helpdesk --set-default frontend;
 
   db:
     image: mariadb:10.6
@@ -87,7 +87,7 @@ services:
       - db-data:/var/lib/mysql
 
   frontend:
-    image: hsrai/frappe_docker:educationV0.0.2
+    image: hsrai/frappe_docker:educationV0.1.0
     depends_on:
       - websocket
     deploy:
@@ -111,7 +111,7 @@ services:
       - "8080:8080"
 
   queue-long:
-    image: hsrai/frappe_docker:educationV0.0.2
+    image: hsrai/frappe_docker:educationV0.1.0
     deploy:
       restart_policy:
         condition: on-failure
@@ -125,7 +125,7 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   queue-short:
-    image: hsrai/frappe_docker:educationV0.0.2
+    image: hsrai/frappe_docker:educationV0.1.0
     deploy:
       restart_policy:
         condition: on-failure
@@ -155,7 +155,7 @@ services:
       - redis-cache-data:/data
 
   scheduler:
-    image: hsrai/frappe_docker:educationV0.0.2
+    image: hsrai/frappe_docker:educationV0.1.0
     deploy:
       restart_policy:
         condition: on-failure
@@ -167,7 +167,7 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   websocket:
-    image: hsrai/frappe_docker:educationV0.0.2
+    image: hsrai/frappe_docker:educationV0.1.0
     deploy:
       restart_policy:
         condition: on-failure
