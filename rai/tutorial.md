@@ -14,7 +14,7 @@ don't like to install any app, say, foo, then remove "--install foo".
 helpdesk.
 1. This file will create site with name `frontend`. Replace it with any name
 you like at line number 68 and 100.
-1. Issue command: `docker compose -f erpnextPlusApps.yml -d`
+1. Issue command: `docker compose -f erpnextPlusApps.yml up -d`
 1. Wait for about 5 to 10 minutes.
 1. Site will be available at http://ipAddressofYourServer:8080
 1. Default credentials are:- user:administrator password:admin
