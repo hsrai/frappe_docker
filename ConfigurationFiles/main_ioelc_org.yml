@@ -1,0 +1,252 @@
+# Define the Docker Compose file format version
+version: '3.8'
+
+# Define services for the Frappe/ERPNext setup
+services:
+
+  # Backend service for Frappe application server
+  backend:
+    image: ${FRAPPE_IMAGE}  # Use Frappe Docker image from .env
+    deploy:
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - sites:${FRAPPE_HOME}/sites  # Use base path from .env
+      - logs:${FRAPPE_HOME}/logs
+
+  # Configurator service for initial configuration of Frappe
+  configurator:
+    image: ${FRAPPE_IMAGE}
+    deploy:
+      restart_policy:
+        condition: none  # Do not restart; run once for setup
+    entrypoint:
+      - bash
+      - -c
+    command: |
+      # Configuration setup commands for database, redis, and socket.io
+      ls -1 apps > ${FRAPPE_HOME}/sites/apps.txt;
+      bench set-config -g db_host ${DB_HOST};
+      bench set-config -gp db_port ${DB_PORT};
+      bench set-config -g redis_cache "redis://redis-cache:${REDIS_CACHE_PORT}";
+      bench set-config -g redis_queue "redis://redis-queue:${REDIS_QUEUE_PORT}";
+      bench set-config -g redis_socketio "redis://redis-queue:${REDIS_QUEUE_PORT}";
+      bench set-config -gp socketio_port ${SOCKETIO_PORT};
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: "${DB_PORT}"
+      REDIS_CACHE: redis-cache:${REDIS_CACHE_PORT}
+      REDIS_QUEUE: redis-queue:${REDIS_QUEUE_PORT}
+      SOCKETIO_PORT: "${SOCKETIO_PORT}"
+    volumes:
+      - sites:${FRAPPE_HOME}/sites
+      - logs:${FRAPPE_HOME}/logs
+
+  # Site creation service to initialize a new Frappe site
+  create-site:
+    image: ${FRAPPE_IMAGE}
+    deploy:
+      restart_policy:
+        condition: none  # Run only once for initial setup
+    volumes:
+      - sites:${FRAPPE_HOME}/sites
+      - logs:${FRAPPE_HOME}/logs
+    entrypoint:
+      - bash
+      - -c
+    command: |
+      # Wait for services to be available, then create a new site
+      wait-for-it -t 520 db:3306;
+      wait-for-it -t 520 redis-cache:${REDIS_CACHE_PORT};
+      wait-for-it -t 520 redis-queue:${REDIS_QUEUE_PORT};
+      export start=`date +%s`;
+      until [[ -n `grep -hs ^ ${FRAPPE_HOME}/sites/common_site_config.json | \
+      jq -r ".db_host // empty"` ]] && \
+      [[ -n `grep -hs ^ ${FRAPPE_HOME}/sites/common_site_config.json | \
+      jq -r ".redis_cache // empty"` ]] && \
+      [[ -n `grep -hs ^ ${FRAPPE_HOME}/sites/common_site_config.json | \
+      jq -r ".redis_queue // empty"` ]];
+      do
+        echo "Waiting for common_site_config.json to be created";
+        sleep 50;
+        if (( `date +%s`-start > 120 )); then
+          echo "could not find common_site_config.json with required keys";
+          exit 1
+        fi
+      done;
+      echo "common_site_config.json found";
+      bench new-site --no-mariadb-socket \
+      --admin-password=${ADMIN_PASSWORD} \
+      --db-root-password=${DB_ROOT_PASSWORD} \
+      --install-app wiki \
+      --install-app drive \
+      --install-app raven \
+      --install-app helpdesk \
+      --set-default ${SITE_NAME};
+    environment:
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SITE_NAME: ${SITE_NAME}
+      PROJECT: ${SITE_NAME}
+
+  # MariaDB database service with custom configuration
+  db:
+    image: mariadb:10.6
+    healthcheck:
+      test: mysqladmin ping -h localhost --password=${DB_ROOT_PASSWORD}
+      interval: 1s
+      retries: 20
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+
+  # Frontend service for Frappe/ERPNext's NGINX server
+  frontend:
+    image: ${FRAPPE_IMAGE}
+    depends_on:
+      - websocket
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - nginx-entrypoint.sh
+    environment:
+      BACKEND: backend:8000
+      FRAPPE_SITE_NAME_HEADER: ${SITE_NAME}
+      SOCKETIO: websocket:${SOCKETIO_PORT}
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+      PROXY_READ_TIMEOUT: ${PROXY_READ_TIMEOUT}
+      CLIENT_MAX_BODY_SIZE: ${CLIENT_MAX_BODY_SIZE}
+    volumes:
+      - sites:${FRAPPE_HOME}/sites
+      - logs:${FRAPPE_HOME}/logs
+    ports:
+      - "8080:8080"
+
+  # Queue workers for long-running and default tasks
+  queue-long:
+    image: ${FRAPPE_IMAGE}
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - bench
+      - worker
+      - --queue
+      - long,default,short
+    volumes:
+      - sites:${FRAPPE_HOME}/sites
+      - logs:${FRAPPE_HOME}/logs
+
+  # Queue workers for short-running tasks
+  queue-short:
+    image: ${FRAPPE_IMAGE}
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - bench
+      - worker
+      - --queue
+      - short,default
+    volumes:
+      - sites:${FRAPPE_HOME}/sites
+      - logs:${FRAPPE_HOME}/logs
+
+  # Redis service for queue management (non-persistent data)
+  redis-queue:
+    image: redis:6.2-alpine
+    deploy:
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - redis-queue-data:/data
+
+  # Redis service for caching (non-persistent data)
+  redis-cache:
+    image: redis:6.2-alpine
+    deploy:
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - redis-cache-data:/data
+
+  # Scheduler service for periodic Frappe tasks
+  scheduler:
+    image: ${FRAPPE_IMAGE}
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - bench
+      - schedule
+    volumes:
+      - sites:${FRAPPE_HOME}/sites
+      - logs:${FRAPPE_HOME}/logs
+
+  # WebSocket service for real-time updates (Socket.IO)
+  websocket:
+    image: ${FRAPPE_IMAGE}
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - bench
+      - serve
+      - --port
+      - "${SOCKETIO_PORT}"
+    volumes:
+      - sites:${FRAPPE_HOME}/sites
+      - logs:${FRAPPE_HOME}/logs
+
+# Define persistent storage volumes for services
+#volumes:
+#  sites: {}
+#  logs: {}
+#  db-data: {}
+#  redis-queue-data: {}
+#  redis-cache-data: {}
+
+# Define persistent storage volumes with specific paths under $HOME/workspace/PROJECT
+volumes:
+  sites:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${HOME}/workspace/${PROJECT}/sites"
+  logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${HOME}/workspace/${PROJECT}/logs"
+  db-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${HOME}/workspace/${PROJECT}/db-data"
+  redis-queue-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${HOME}/workspace/${PROJECT}/redis-queue-data"
+  redis-cache-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${HOME}/workspace/${PROJECT}/redis-cache-data"

@@ -1,0 +1,23 @@
+# .env - Environment configuration file for Docker Compose
+
+# Database configuration
+DB_ROOT_PASSWORD=root # Root password for MariaDB database
+ADMIN_PASSWORD=Admin_Me.Rai     # Admin password for the Frappe site
+
+# Redis service ports (default)
+REDIS_CACHE_PORT=6379                  # Port for Redis cache service
+REDIS_QUEUE_PORT=6379                  # Port for Redis queue service
+
+# Site-specific configuration
+SITE_NAME=hs.rai                     # Name of the primary site to create
+
+# Backend socket configurations
+SOCKETIO_PORT=9000                     # Port for Frappe WebSocket service
+
+# Nginx configurations
+PROXY_READ_TIMEOUT=600                 # Timeout for proxy reading in seconds
+CLIENT_MAX_BODY_SIZE=50m               # Max body size for uploads (e.g., files)
+
+# Database connection configuration (optional)
+DB_HOST=db                             # Hostname for the database container
+DB_PORT=3306                           # Database port number
